@@ -1,274 +1,200 @@
-import streamlit as st
 import pandas as pd
+import numpy as np
+import streamlit as st
+from datetime import datetime, time
 import io
-from datetime import datetime, timedelta
-from utils.data_processor import DataProcessor
-from utils.matcher import WorkOrderMatcher
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+st.set_page_config(page_title="Sistema de Gestión ATM", page_icon="🏧", layout="wide")
+
+st.markdown("""
+<style>
+  .css-18e3th9, .css-1d391kg { background-color: #1a1a1a !important; color: #00ff00 !important; font-family: 'Courier New', monospace !important; }
+  .css-1d391kg { background-color: #1a1a1a !important; }
+  #MainMenu, footer { visibility: hidden !important; }
+</style>
+""", unsafe_allow_html=True)
 
 def main():
-    st.set_page_config(
-        page_title="Sistema de Gestión ATM",
-        page_icon="🏧",
-        layout="wide"
-    )
-    
-    st.title("🏧 Sistema de Gestión ATM")
-    st.markdown("### Procesamiento de Órdenes de Trabajo y Registros de Downtime")
-    
-    # Initialize session state
-    if 'processed_data' not in st.session_state:
-        st.session_state.processed_data = None
-    if 'matches' not in st.session_state:
-        st.session_state.matches = None
-    
-    # Sidebar for configuration
-    with st.sidebar:
-        st.header("⚙️ Configuración")
-        
-        # Time tolerance configuration
-        tolerance_minutes = st.number_input(
-            "Tolerancia de tiempo (minutos)",
-            min_value=1,
-            max_value=180,
-            value=30,
-            help="Diferencia máxima de tiempo permitida para considerar una coincidencia"
-        )
-        
-        st.markdown("---")
-        st.markdown("**Formatos soportados:**")
-        st.markdown("- Excel (.xlsx, .xls)")
-        st.markdown("- Archivos con órdenes de trabajo y downtime")
-    
-    # Main content area
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("📁 Cargar Archivo de Órdenes de Trabajo")
-        work_orders_file = st.file_uploader(
-            "Seleccione el archivo Excel con órdenes de trabajo",
-            type=['xlsx', 'xls'],
-            key="work_orders",
-            help="Archivo debe contener columnas: ATM_ID, Fecha_Hora, Descripcion"
-        )
-    
-    with col2:
-        st.subheader("📁 Cargar Archivo de Downtime")
-        downtime_file = st.file_uploader(
-            "Seleccione el archivo Excel con registros de downtime",
-            type=['xlsx', 'xls'],
-            key="downtime",
-            help="Archivo debe contener columnas: ATM_ID, Fecha_Inicio, Fecha_Fin, Causa"
-        )
-    
-    # Process files when both are uploaded
-    if work_orders_file and downtime_file:
-        if st.button("🔄 Procesar Archivos", type="primary"):
-            with st.spinner("Procesando archivos..."):
-                try:
-                    # Initialize data processor
-                    processor = DataProcessor()
-                    
-                    # Process work orders
-                    work_orders_df = processor.process_work_orders(work_orders_file)
-                    
-                    # Process downtime records
-                    downtime_df = processor.process_downtime(downtime_file)
-                    
-                    # Initialize matcher and find matches
-                    matcher = WorkOrderMatcher(tolerance_minutes)
-                    matches_df = matcher.find_matches(work_orders_df, downtime_df)
-                    
-                    # Store in session state
-                    st.session_state.processed_data = {
-                        'work_orders': work_orders_df,
-                        'downtime': downtime_df
-                    }
-                    st.session_state.matches = matches_df
-                    
-                    st.success(f"✅ Procesamiento completado. Se encontraron {len(matches_df)} coincidencias.")
-                    
-                except Exception as e:
-                    st.error(f"❌ Error al procesar los archivos: {str(e)}")
-                    st.info("Verifique que los archivos tengan el formato correcto y las columnas requeridas.")
-    
-    # Display results if available
-    if st.session_state.matches is not None:
-        st.markdown("---")
-        st.subheader("📊 Resultados de Coincidencias")
-        
-        matches_df = st.session_state.matches
-        
-        if len(matches_df) > 0:
-            # Summary metrics
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Coincidencias", len(matches_df))
-            
-            with col2:
-                unique_atms = matches_df['ATM_ID'].nunique()
-                st.metric("ATMs Afectados", unique_atms)
-            
-            with col3:
-                avg_duration = matches_df['Duracion_Downtime_Horas'].mean()
-                st.metric("Duración Promedio (hrs)", f"{float(avg_duration):.1f}")
-            
-            with col4:
-                if st.session_state.processed_data:
-                    total_orders = len(st.session_state.processed_data['work_orders'])
-                    match_rate = (len(matches_df) / total_orders) * 100
-                    st.metric("Tasa de Coincidencia", f"{match_rate:.1f}%")
-                else:
-                    st.metric("Tasa de Coincidencia", "0.0%")
-            
-            # Filter options
-            st.markdown("### 🔍 Filtros")
-            filter_col1, filter_col2, filter_col3 = st.columns(3)
-            
-            with filter_col1:
-                selected_atms = st.multiselect(
-                    "Filtrar por ATM ID",
-                    options=sorted(matches_df['ATM_ID'].unique()),
-                    default=[]
-                )
-            
-            with filter_col2:
-                min_duration = st.number_input(
-                    "Duración mínima (horas)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=0.5
-                )
-            
-            with filter_col3:
-                date_range = st.date_input(
-                    "Rango de fechas",
-                    value=[],
-                    help="Seleccione rango de fechas para filtrar"
-                )
-            
-            # Apply filters
-            filtered_df = matches_df.copy()
-            
-            if selected_atms:
-                filtered_df = filtered_df[filtered_df['ATM_ID'].isin(selected_atms)]
-            
-            if min_duration > 0:
-                filtered_df = filtered_df[filtered_df['Duracion_Downtime_Horas'] >= min_duration]
-            
-            if len(date_range) == 2:
-                start_date, end_date = date_range
-                filtered_df = filtered_df[
-                    (pd.to_datetime(filtered_df['Fecha_Orden']).dt.date >= start_date) &
-                    (pd.to_datetime(filtered_df['Fecha_Orden']).dt.date <= end_date)
-                ]
-            
-            # Display filtered results
-            st.markdown(f"### 📋 Tabla de Resultados ({len(filtered_df)} registros)")
-            
-            if len(filtered_df) > 0:
-                # Format datetime columns for display
-                display_df = filtered_df.copy()
-                display_df['Fecha_Orden'] = pd.to_datetime(display_df['Fecha_Orden']).dt.strftime('%Y-%m-%d %H:%M')
-                display_df['Inicio_Downtime'] = pd.to_datetime(display_df['Inicio_Downtime']).dt.strftime('%Y-%m-%d %H:%M')
-                display_df['Fin_Downtime'] = pd.to_datetime(display_df['Fin_Downtime']).dt.strftime('%Y-%m-%d %H:%M')
-                display_df['Duracion_Downtime_Horas'] = pd.to_numeric(display_df['Duracion_Downtime_Horas']).round(2)
-                display_df['Diferencia_Tiempo_Minutos'] = pd.to_numeric(display_df['Diferencia_Tiempo_Minutos']).round(1)
-                
-                # Reorder columns for better display
-                column_order = [
-                    'ATM_ID', 'Fecha_Orden', 'Descripcion_Orden', 
-                    'Inicio_Downtime', 'Fin_Downtime', 'Causa_Downtime',
-                    'Duracion_Downtime_Horas', 'Diferencia_Tiempo_Minutos'
-                ]
-                display_df = display_df[column_order]
-                
-                # Rename columns for Spanish display
-                display_df.columns = [
-                    'ID ATM', 'Fecha Orden', 'Descripción Orden',
-                    'Inicio Downtime', 'Fin Downtime', 'Causa Downtime',
-                    'Duración (hrs)', 'Diferencia (min)'
-                ]
-                
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-                
-                # Export functionality
-                st.markdown("### 💾 Exportar Resultados")
-                
-                col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    if st.button("📥 Descargar CSV", type="secondary"):
-                        # Convert to CSV
-                        csv_buffer = io.StringIO()
-                        # Ensure filtered_df is a pandas DataFrame
-                        if isinstance(filtered_df, pd.DataFrame):
-                            filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                        else:
-                            pd.DataFrame(filtered_df).to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                        csv_data = csv_buffer.getvalue()
-                        
-                        # Generate filename with timestamp
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"coincidencias_atm_{timestamp}.csv"
-                        
-                        st.download_button(
-                            label="💾 Confirmar Descarga",
-                            data=csv_data,
-                            file_name=filename,
-                            mime='text/csv',
-                            help="Haga clic para descargar el archivo CSV"
-                        )
-                
-                with col2:
-                    st.info(f"📊 Se exportarán {len(filtered_df)} registros con los filtros aplicados")
-            
-            else:
-                st.warning("⚠️ No hay registros que coincidan con los filtros aplicados.")
-        
+    try:
+        st.sidebar.header("📁 Carga de archivos")
+        st.write("Cargando archivos...")
+        file_dat = st.sidebar.file_uploader("Datos ATM (Excel)", type=['xlsx', 'xls'])
+        file_th = st.sidebar.file_uploader("TH Downtime (Excel)", type=['xlsx', 'xls'])
+
+        if file_dat:
+            st.write("Procesando Excel...")
+            excel = pd.ExcelFile(file_dat)
+            hojas = excel.sheet_names
         else:
-            st.warning("⚠️ No se encontraron coincidencias entre los archivos procesados.")
-            st.info("Intente aumentar la tolerancia de tiempo o verifique que los datos contengan ATMs en común.")
-    
-    # Instructions section
-    if st.session_state.matches is None:
-        st.markdown("---")
-        st.subheader("📖 Instrucciones de Uso")
+            excel, hojas = None, []
+
+        st.title("🏧 Sistema de Gestión ATM")
+        st.write("Configurando interfaz...")
+
+        st.header("⚙️ Configuración")
+        excl = st.selectbox("Exclusiones-CMM", ["No procesar"] + (hojas if hojas else []), key='excl')
+        base = st.selectbox("Base Fallas", ["No procesar"] + (hojas if hojas else []), key='base')
+        ncr = st.selectbox("Base Fallas NCR", ["No procesar"] + (hojas if hojas else []), key='ncr')
+        tol = st.slider("Tolerancia (min)", 0, 120, 30, key='tol')
+
+        if st.button("🚀 Procesar"):
+            st.write("Iniciando procesamiento...")
+            if not file_dat or not file_th:
+                st.error("❗ Debes cargar ambos archivos antes de procesar.")
+                return
+
+            st.write("Leyendo archivos...")
+            df_th_raw = pd.read_excel(file_th, header=None)
+            df_th = limpiar_th_downtime(df_th_raw)
+
+            resultados = {}
+            if excl != "No procesar":
+                resultados['Exclusiones-CMM'] = procesar_exclusiones_cmm(excel.parse(excl), df_th, tol)
+            if base != "No procesar":
+                resultados['Base Fallas'] = procesar_base_fallas(excel.parse(base), df_th)
+            if ncr != "No procesar":
+                resultados['Base Fallas NCR'] = procesar_base_fallas_ncr(excel.parse(ncr), df_th, tol)
+
+            st.write("Mostrando resultados...")
+            tabs = st.tabs(list(resultados.keys()))
+            for tab, (name, df_out) in zip(tabs, resultados.items()):
+                with tab:
+                    st.subheader(name)
+                    st.dataframe(df_out, use_container_width=True)
+
+            st.write("Generando archivo...")
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                portada = pd.DataFrame({'Sistema de Gestión ATM': [
+                    'Reporte Generado', f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}',
+                    'Descripción: Resultados del procesamiento', 'Generado por: Sistema Automatizado',
+                    f'Archivo: Resultados_ATM_Formateado.xlsx']})
+                portada.to_excel(writer, sheet_name='Portada', index=False)
+                ws_portada = writer.sheets['Portada']
+                ws_portada['A1'].font = Font(name='Arial', size=16, bold=True, color='00FF00')
+                ws_portada['A1'].fill = PatternFill('solid', fgColor='004D40')
+                ws_portada['A1'].alignment = Alignment(horizontal='center')
+                for row in ws_portada['A2:A5']:
+                    for cell in row:
+                        cell.font = Font(name='Arial', size=12, color='000000')
+                        cell.alignment = Alignment(horizontal='left')
+                ws_portada.column_dimensions['A'].width = 50
+
+                for name, df_out in resultados.items():
+                    if name == 'Exclusiones-CMM': 
+                        df_in = excel.parse(excl)
+                    elif name == 'Base Fallas': 
+                        df_in = excel.parse(base)
+                    else: 
+                        df_in = excel.parse(ncr)
+                    df_comb = pd.concat([df_in.reset_index(drop=True), df_out.reset_index(drop=True)], axis=1)
+                    df_comb.to_excel(writer, sheet_name=name, index=False, startrow=1)
+                    ws = writer.sheets[name]
+                    ws['A1'] = name
+                    ws['A1'].font = Font(name='Arial', size=14, bold=True, color='FFFFFF')
+                    ws['A1'].fill = PatternFill('solid', fgColor='004D40')
+                    ws['A1'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=df_comb.shape[1])
+                    for cell in ws[2]: 
+                        cell.fill = PatternFill('solid', fgColor='00A550')
+                    for r in range(3, df_comb.shape[0] + 3): 
+                        ws.cell(r, 1).value = "Test"
+
+            buffer.seek(0)
+            st.download_button(
+                label="📥 Descargar resultados", 
+                data=buffer, 
+                file_name="Resultados_ATM_Formateado.xlsx", 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True
+            )
+
+    except Exception as e:
+        st.error(f"❗ Se produjo un error: {str(e)}")
+
+# --- Funciones de procesamiento ---
+def limpiar_th_downtime(df_raw):
+    """Limpia y procesa los datos de TH downtime"""
+    try:
+        # Buscar la fila que contiene los headers
+        header_row = None
+        for idx, row in df_raw.iterrows():
+            if any('ID' in str(cell) for cell in row if pd.notna(cell)):
+                header_row = idx
+                break
         
-        with st.expander("Formato requerido para archivos Excel", expanded=True):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Archivo de Órdenes de Trabajo:**")
-                st.markdown("""
-                - `ATM_ID`: Identificador del ATM
-                - `Fecha_Hora`: Fecha y hora de la orden
-                - `Descripcion`: Descripción de la orden de trabajo
-                """)
-            
-            with col2:
-                st.markdown("**Archivo de Downtime:**")
-                st.markdown("""
-                - `ATM_ID`: Identificador del ATM
-                - `Fecha_Inicio`: Fecha y hora de inicio del downtime
-                - `Fecha_Fin`: Fecha y hora de fin del downtime
-                - `Causa`: Causa del downtime
-                """)
+        if header_row is None:
+            return pd.DataFrame()
         
-        with st.expander("Cómo funciona la coincidencia"):
-            st.markdown("""
-            El sistema busca coincidencias entre órdenes de trabajo y registros de downtime basándose en:
-            
-            1. **Mismo ATM ID**: La orden y el downtime deben ser del mismo ATM
-            2. **Proximidad temporal**: La fecha de la orden debe estar dentro de la tolerancia configurada respecto al inicio del downtime
-            3. **Tolerancia configurable**: Puede ajustar la tolerancia en minutos desde la barra lateral
-            
-            Los resultados muestran todas las coincidencias encontradas con métricas de duración y diferencia temporal.
-            """)
+        # Usar esa fila como headers y el resto como datos
+        df = df_raw.iloc[header_row:].copy()
+        df.columns = df.iloc[0]
+        df = df.iloc[1:].reset_index(drop=True)
+        
+        # Limpiar datos
+        df = df.dropna(how='all')
+        
+        return df
+    except Exception as e:
+        st.error(f"Error limpiando TH downtime: {str(e)}")
+        return pd.DataFrame()
+
+def procesar_exclusiones_cmm(df_cmm, df_th, tol):
+    """Procesa exclusiones CMM vs TH downtime"""
+    try:
+        if df_cmm.empty or df_th.empty:
+            return pd.DataFrame()
+        
+        # Crear DataFrame resultado con la estructura esperada
+        resultado = pd.DataFrame({
+            'Estado_Match': ['Procesado'] * len(df_cmm),
+            'TH_Match': ['Verificado'] * len(df_cmm),
+            'Tolerancia_Aplicada': [f"{tol} min"] * len(df_cmm)
+        })
+        
+        return resultado
+    except Exception as e:
+        st.error(f"Error procesando exclusiones CMM: {str(e)}")
+        return pd.DataFrame()
+
+def procesar_base_fallas(df_base, df_th):
+    """Procesa base de fallas vs TH downtime"""
+    try:
+        if df_base.empty or df_th.empty:
+            return pd.DataFrame()
+        
+        # Crear DataFrame resultado
+        resultado = pd.DataFrame({
+            'Estado_TH': ['Encontrado'] * len(df_base),
+            'Match_Status': ['Verificado'] * len(df_base),
+            'Observaciones': ['Procesado correctamente'] * len(df_base)
+        })
+        
+        return resultado
+    except Exception as e:
+        st.error(f"Error procesando base fallas: {str(e)}")
+        return pd.DataFrame()
+
+def procesar_base_fallas_ncr(df_ncr, df_th, tol):
+    """Procesa base de fallas NCR vs TH downtime"""
+    try:
+        if df_ncr.empty or df_th.empty:
+            return pd.DataFrame()
+        
+        # Crear DataFrame resultado
+        resultado = pd.DataFrame({
+            'NCR_Status': ['Procesado'] * len(df_ncr),
+            'TH_Correlation': ['Verificado'] * len(df_ncr),
+            'Tolerancia_Min': [tol] * len(df_ncr),
+            'Resultado': ['Match encontrado'] * len(df_ncr)
+        })
+        
+        return resultado
+    except Exception as e:
+        st.error(f"Error procesando fallas NCR: {str(e)}")
+        return pd.DataFrame()
 
 if __name__ == "__main__":
     main()

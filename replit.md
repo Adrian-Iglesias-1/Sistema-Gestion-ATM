@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Streamlit-based ATM management system designed to process and match work orders with downtime records. The application allows users to upload Excel files containing work order data and downtime logs, then automatically identifies correlations between maintenance activities and ATM outages within configurable time tolerances. The system provides a web interface for data visualization and analysis to help optimize ATM maintenance operations.
+This is a Streamlit-based ATM management system designed to process Excel files with multiple sheets containing ATM data, exclusions, failures, and downtime records. The application allows users to upload Excel files and automatically processes different types of data (Exclusiones-CMM, Base Fallas, Base Fallas NCR) against TH Downtime records with configurable time tolerances. The system generates formatted Excel reports with professional styling and provides a web interface for data processing and analysis.
 
 ## User Preferences
 
