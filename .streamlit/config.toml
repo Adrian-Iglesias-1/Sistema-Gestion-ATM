@@ -6,5 +6,10 @@ port = 5000
 [browser]
 gatherUsageStats = false
 
-[global]
-dataFrameSerialization = "legacy"
+[theme]
+base="dark"
+primaryColor="#00FF00"          # verde brillante para botones y acentos
+backgroundColor="#000000"       # fondo negro puro
+secondaryBackgroundColor="#000000"  # sidebar también negra
+textColor="#00FF00"             # texto verde brillante
+font="monospace"                # tipografía de terminal
