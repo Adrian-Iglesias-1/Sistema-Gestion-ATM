@@ -1,6 +1,7 @@
 services:
-  - type: web
-    name: sistema-gestion-atm
+  - name: sistema-gestion-atm
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "streamlit run main.py --server.port=$PORT"
+    startCommand: streamlit run main.py --server.port $PORT
+    buildCommand: pip install -r requirements.txt
+    ports:
+      - 5000
