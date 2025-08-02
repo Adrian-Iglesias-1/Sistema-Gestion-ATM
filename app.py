@@ -860,9 +860,12 @@ def main():
                     if excl != "No procesar":
                         status_text.text('🔄 Procesando Exclusiones-CMM...')
                         try:
-                            resultados[
-                                'Exclusiones-CMM'] = procesar_exclusiones_cmm(
-                                    excel.parse(excl), df_th, tol)
+                            if excel is not None:
+                                resultados[
+                                    'Exclusiones-CMM'] = procesar_exclusiones_cmm(
+                                        excel.parse(excl), df_th, tol)
+                            else:
+                                st.error("❌ No se pudo cargar el archivo Excel")
                             current_progress += progress_step
                             progress_bar.progress(int(current_progress))
                         except Exception as e:
@@ -874,8 +877,11 @@ def main():
                     if base != "No procesar":
                         status_text.text('⚡ Procesando Base Fallas...')
                         try:
-                            resultados['Base Fallas'] = procesar_base_fallas(
-                                excel.parse(base), df_th)
+                            if excel is not None:
+                                resultados['Base Fallas'] = procesar_base_fallas(
+                                    excel.parse(base), df_th)
+                            else:
+                                st.error("❌ No se pudo cargar el archivo Excel")
                             current_progress += progress_step
                             progress_bar.progress(int(current_progress))
                         except Exception as e:
@@ -886,9 +892,12 @@ def main():
                     if ncr != "No procesar":
                         status_text.text('🛠️ Procesando Base Fallas NCR...')
                         try:
-                            resultados[
-                                'Base Fallas NCR'] = procesar_base_fallas_ncr(
-                                    excel.parse(ncr), df_th, tol)
+                            if excel is not None:
+                                resultados[
+                                    'Base Fallas NCR'] = procesar_base_fallas_ncr(
+                                        excel.parse(ncr), df_th, tol)
+                            else:
+                                st.error("❌ No se pudo cargar el archivo Excel")
                             current_progress += progress_step
                             progress_bar.progress(int(current_progress))
                         except Exception as e:
@@ -981,10 +990,11 @@ def main():
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 # Generar archivo Excel con formato
-                buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    # Hoja de portada
-                    portada = pd.DataFrame({
+                try:
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        # Hoja de portada
+                        portada = pd.DataFrame({
                         'Sistema de Gestión ATM': [
                             'Reporte Generado',
                             f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}',
@@ -1007,292 +1017,74 @@ def main():
                             cell.font = Font(name='Arial',
                                              size=12,
                                              color='000000')
-                    ws_portada.column_dimensions['A'].width = 80
+                        ws_portada.column_dimensions['A'].width = 80
 
-                    # Hojas de resultados con formato mejorado y diferenciado
-                # Agregar debugging para identificar el problema
-                print("=== DEBUGGING EXCEL GENERATION ===")
-                print(
-                    f"st.session_state.resultados keys: {list(st.session_state.resultados.keys()) if 'resultados' in st.session_state.__dict__ else 'No existe resultados'}"
-                )
+                        # Agregar debugging para identificar el problema
+                        print("=== DEBUGGING EXCEL GENERATION ===")
+                        print(
+                            f"st.session_state.resultados keys: {list(st.session_state.resultados.keys()) if 'resultados' in st.session_state.__dict__ else 'No existe resultados'}"
+                        )
 
-                # Verificar que existan los resultados
-                if 'resultados' not in st.session_state.__dict__ or not st.session_state.resultados:
-                    print("ERROR: No hay resultados para procesar")
-                    st.error(
-                        "No hay resultados para generar el Excel. Ejecuta el procesamiento primero."
-                    )
-                else:
-                    print(
-                        f"Total de hojas a crear: {len(st.session_state.resultados)}"
-                    )
-
-                    # Hojas de resultados con formato mejorado y diferenciado
-                    for name, df_out in st.session_state.resultados.items():
-                        print(f"\n--- Procesando hoja: {name} ---")
-                        print(f"Forma del df_out: {df_out.shape}")
-
-                        try:
-                            # Obtener datos originales según el tipo
-                            if name == 'Exclusiones-CMM':
-                                df_in = excel.parse(excl)
-                                print(
-                                    f"Exclusiones-CMM shape original: {df_in.shape}"
-                                )
-                            elif name == 'Base Fallas':
-                                df_in = excel.parse(base)
-                                print(
-                                    f"Base Fallas shape original: {df_in.shape}"
-                                )
-                                # Verificar que tenga suficientes columnas antes de eliminar
-                                if df_in.shape[1] > 14:
-                                    df_in = df_in.drop(df_in.columns[11:15],
-                                                       axis=1)
-                                    print(
-                                        f"Base Fallas shape después de eliminar columnas L-O: {df_in.shape}"
-                                    )
-                                else:
-                                    print(
-                                        f"ADVERTENCIA: Base Fallas solo tiene {df_in.shape[1]} columnas, no se pueden eliminar L-O"
-                                    )
-                            else:  # Base Fallas NCR
-                                df_in = excel.parse(ncr)
-                                print(
-                                    f"Base Fallas NCR shape original: {df_in.shape}"
-                                )
-                                # Verificar que tenga suficientes columnas antes de eliminar
-                                if df_in.shape[1] > 17:
-                                    df_in = df_in.drop(df_in.columns[14:18],
-                                                       axis=1)
-                                    print(
-                                        f"Base Fallas NCR shape después de eliminar columnas O-R: {df_in.shape}"
-                                    )
-                                else:
-                                    print(
-                                        f"ADVERTENCIA: Base Fallas NCR solo tiene {df_in.shape[1]} columnas, no se pueden eliminar O-R"
-                                    )
-
-                            # Combinar datos originales con resultados
-                            print(
-                                f"Combinando: df_in {df_in.shape} + df_out {df_out.shape}"
+                        # Verificar que existan los resultados
+                        if 'resultados' not in st.session_state.__dict__ or not st.session_state.resultados:
+                            print("ERROR: No hay resultados para procesar")
+                            st.error(
+                                "No hay resultados para generar el Excel. Ejecuta el procesamiento primero."
                             )
-                            df_comb = pd.concat([
-                                df_in.reset_index(drop=True),
-                                df_out.reset_index(drop=True)
-                            ],
-                                                axis=1)
-                            print(f"df_comb shape final: {df_comb.shape}")
-
-                            # Escribir al Excel
-                            print(f"Escribiendo hoja '{name}' al Excel...")
-                            df_comb.to_excel(writer,
-                                             sheet_name=name,
-                                             index=False,
-                                             startrow=2)
-
-                            ws = writer.sheets[name]
-                            print(f"Hoja '{name}' creada exitosamente")
-
-                            # TÍTULO PRINCIPAL
-                            ws['A1'] = name
-                            ws['A1'].font = Font(name='Arial',
-                                                 size=16,
-                                                 bold=True,
-                                                 color='FFFFFF')
-                            ws['A1'].fill = PatternFill('solid',
-                                                        fgColor='1F4E79')
-                            ws['A1'].alignment = Alignment(horizontal='center',
-                                                           vertical='center')
-                            ws.merge_cells(start_row=1,
-                                           start_column=1,
-                                           end_row=1,
-                                           end_column=df_comb.shape[1])
-
-                            # SUBTÍTULOS PARA DIFERENCIAR SECCIONES
-                            # Subtítulo para datos originales
-                            ws.merge_cells(start_row=2,
-                                           start_column=1,
-                                           end_row=2,
-                                           end_column=df_in.shape[1])
-                            ws['A2'] = "DATOS ORIGINALES"
-                            ws['A2'].font = Font(name='Arial',
-                                                 size=12,
-                                                 bold=True,
-                                                 color='FFFFFF')
-                            ws['A2'].fill = PatternFill(
-                                'solid',
-                                fgColor='8B4513')  # Marrón para originales
-                            ws['A2'].alignment = Alignment(horizontal='center',
-                                                           vertical='center')
-
-                            # Subtítulo para resultados del procesamiento
-                            start_col_results = df_in.shape[1] + 1
-                            ws.merge_cells(start_row=2,
-                                           start_column=start_col_results,
-                                           end_row=2,
-                                           end_column=df_comb.shape[1])
-                            cell_results = ws.cell(row=2,
-                                                   column=start_col_results)
-                            cell_results.value = "RESULTADOS DEL PROCESAMIENTO"
-                            cell_results.font = Font(name='Arial',
-                                                     size=12,
-                                                     bold=True,
-                                                     color='FFFFFF')
-                            cell_results.fill = PatternFill(
-                                'solid',
-                                fgColor='0066CC')  # Azul para resultados
-                            cell_results.alignment = Alignment(
-                                horizontal='center', vertical='center')
-
-                            # ENCABEZADOS DE COLUMNAS (fila 3)
-                            for col_idx, cell in enumerate(ws[3], 1):
-                                if col_idx <= df_in.shape[1]:
-                                    # Encabezados de datos originales
-                                    cell.font = Font(name='Arial',
-                                                     size=10,
-                                                     bold=True,
-                                                     color='FFFFFF')
-                                    cell.fill = PatternFill(
-                                        'solid',
-                                        fgColor='A0522D')  # Marrón más claro
-                                    cell.alignment = Alignment(
-                                        horizontal='center',
-                                        vertical='center',
-                                        wrap_text=True)
-                                else:
-                                    # Encabezados de resultados
-                                    cell.font = Font(name='Arial',
-                                                     size=10,
-                                                     bold=True,
-                                                     color='FFFFFF')
-                                    cell.fill = PatternFill(
-                                        'solid',
-                                        fgColor='4A90E2')  # Azul más claro
-                                    cell.alignment = Alignment(
-                                        horizontal='center',
-                                        vertical='center',
-                                        wrap_text=True)
-
-                                # Borde para todos los encabezados
-                                cell.border = Border(
-                                    left=Side(style='thin', color='000000'),
-                                    right=Side(style='thin', color='000000'),
-                                    top=Side(style='thin', color='000000'),
-                                    bottom=Side(style='medium',
-                                                color='000000'))
-
-                            # DATOS (desde fila 4 en adelante)
-                            for row_idx in range(4, len(df_comb) + 4):
-                                for col_idx in range(1, df_comb.shape[1] + 1):
-                                    cell = ws.cell(row=row_idx, column=col_idx)
-
-                                    # Aplicar formato según si es dato original o resultado
-                                    if col_idx <= df_in.shape[1]:
-                                        # Datos originales - tonos beige/marrones claros
-                                        if row_idx % 2 == 0:
-                                            cell.fill = PatternFill(
-                                                'solid', fgColor='F5F5DC'
-                                            )  # Beige claro
-                                        else:
-                                            cell.fill = PatternFill(
-                                                'solid', fgColor='FAEBD7'
-                                            )  # Beige más claro
-                                        cell.font = Font(name='Arial',
-                                                         size=9,
-                                                         color='2F4F4F'
-                                                         )  # Texto gris oscuro
-                                    else:
-                                        # Resultados del procesamiento - tonos azules claros
-                                        if row_idx % 2 == 0:
-                                            cell.fill = PatternFill(
-                                                'solid', fgColor='E6F3FF'
-                                            )  # Azul muy claro
-                                        else:
-                                            cell.fill = PatternFill(
-                                                'solid',
-                                                fgColor='CCE7FF')  # Azul claro
-                                        cell.font = Font(
-                                            name='Arial',
-                                            size=9,
-                                            color='003366',
-                                            bold=True
-                                        )  # Texto azul oscuro y negrita
-
-                                    # Alineación y bordes
-                                    cell.alignment = Alignment(
-                                        horizontal='center', vertical='center')
-                                    cell.border = Border(
-                                        left=Side(style='thin',
-                                                  color='CCCCCC'),
-                                        right=Side(style='thin',
-                                                   color='CCCCCC'),
-                                        top=Side(style='thin', color='CCCCCC'),
-                                        bottom=Side(style='thin',
-                                                    color='CCCCCC'))
-
-                            # AJUSTAR ANCHO DE COLUMNAS
-                            for col_idx in range(1, df_comb.shape[1] + 1):
-                                # Calcular ancho basado en contenido
-                                max_length = 0
-                                column_letter = get_column_letter(col_idx)
-
-                                # Revisar encabezado
-                                header_length = len(
-                                    str(
-                                        ws.cell(row=3, column=col_idx).value
-                                        or ''))
-                                max_length = max(max_length, header_length)
-
-                                # Revisar datos (solo primeras 100 filas para performance)
-                                for row_idx in range(
-                                        4, min(len(df_comb) + 4, 104)):
-                                    cell_value = ws.cell(row=row_idx,
-                                                         column=col_idx).value
-                                    if cell_value is not None:
-                                        max_length = max(
-                                            max_length, len(str(cell_value)))
-
-                                # Establecer ancho (mínimo 12, máximo 50)
-                                adjusted_width = min(max(max_length + 2, 12),
-                                                     50)
-                                ws.column_dimensions[
-                                    column_letter].width = adjusted_width
-
-                            # CONGELAR PANELES
-                            ws.freeze_panes = 'A4'  # Congelar desde la fila 4 (después de títulos y encabezados)
-
-                            # LÍNEA DIVISORIA VERTICAL entre datos originales y resultados
-                            for row_idx in range(2, len(df_comb) + 4):
-                                separator_col = df_in.shape[1] + 1
-                                cell = ws.cell(row=row_idx,
-                                               column=separator_col)
-                                cell.border = Border(
-                                    left=Side(style='medium', color='FF6600'
-                                              ),  # Línea naranja gruesa
-                                    right=cell.border.right,
-                                    top=cell.border.top,
-                                    bottom=cell.border.bottom)
-
+                        else:
                             print(
-                                f"Formato aplicado completamente a la hoja '{name}'"
+                                f"Total de hojas a crear: {len(st.session_state.resultados)}"
                             )
 
-                        except Exception as e:
-                            print(f"ERROR procesando hoja '{name}': {str(e)}")
-                            print(f"Tipo de error: {type(e).__name__}")
-                            import traceback
-                            traceback.print_exc()
+                            # Hojas de resultados con formato mejorado y diferenciado
+                            for name, df_out in st.session_state.resultados.items():
+                                print(f"\n--- Procesando hoja: {name} ---")
+                                print(f"Forma del df_out: {df_out.shape}")
 
-                print("=== FIN DEBUGGING ===")
-                buffer.seek(0)
-                st.download_button(
-                    label="📥 DESCARGAR RESULTADOS FORMATEADOS",
-                    data=buffer,
-                    file_name=
-                    f"Resultados_ATM_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    mime=
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True)
+                                try:
+                                    # Solo usar los resultados directamente
+                                    df_comb = df_out.copy()
+
+                                    # Escribir al Excel
+                                    print(f"Escribiendo hoja '{name}' al Excel...")
+                                    df_comb.to_excel(writer,
+                                                     sheet_name=name,
+                                                     index=False)
+
+                                    ws = writer.sheets[name]
+                                    print(f"Hoja '{name}' creada exitosamente")
+
+                                    # FORMATO BÁSICO
+                                    # Título principal
+                                    ws['A1'] = f"Resultados - {name}"
+                                    ws['A1'].font = Font(name='Arial', size=14, bold=True)
+                                    
+                                    # Ajustar ancho de columnas
+                                    for col_idx in range(1, df_comb.shape[1] + 1):
+                                        column_letter = get_column_letter(col_idx)
+                                        ws.column_dimensions[column_letter].width = 15
+
+                                    print(f"Formato aplicado a la hoja '{name}'")
+
+                                except Exception as e:
+                                    print(f"ERROR procesando hoja '{name}': {str(e)}")
+                                    print(f"Tipo de error: {type(e).__name__}")
+                                    import traceback
+                                    traceback.print_exc()
+
+                    print("=== FIN DEBUGGING ===")
+                    buffer.seek(0)
+                    st.download_button(
+                        label="📥 DESCARGAR RESULTADOS FORMATEADOS",
+                        data=buffer,
+                        file_name=
+                        f"Resultados_ATM_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime=
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Error generando archivo Excel: {str(e)}")
+                    print(f"Error en Excel generation: {e}")
         else:
             st.info("🔄 **No hay resultados disponibles.**")
             st.markdown("""
