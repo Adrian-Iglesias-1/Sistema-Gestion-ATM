@@ -567,8 +567,8 @@ def procesar_exclusiones_cmm(df_cmm, df_th, tol):
 
         if sub.empty:
             out.append({
-                'ATM': atm,
-                'Status Orig': orig,
+                'ATM': str(atm),  # Asegurar que sea string
+                'Status Orig': str(orig),
                 'Estado': 'No Encontrado',
                 'TK TH': 'N/A',
                 'Ini Orig': ini,
@@ -577,20 +577,29 @@ def procesar_exclusiones_cmm(df_cmm, df_th, tol):
                 'Fin TH': pd.NaT
             })
         else:
+            sub = sub.copy()  # Evitar SettingWithCopyWarning
             sub['diff'] = (sub['ini_th'] - ini).abs().dt.total_seconds() / 60
             best = sub.loc[sub['diff'].idxmin()]
             est = 'Encontrado' if best['diff'] <= tol else 'Diferencia'
             out.append({
-                'ATM': atm,
-                'Status Orig': orig,
-                'Estado': est,
-                'TK TH': best['TICKET KEY'],
+                'ATM': str(atm),  # Asegurar que sea string
+                'Status Orig': str(orig),
+                'Estado': str(est),
+                'TK TH': str(best['TICKET KEY']),
                 'Ini Orig': ini,
                 'Fin Orig': fin,
                 'Ini TH': best['ini_th'],
                 'Fin TH': best['fin_th']
             })
-    return pd.DataFrame(out)
+    
+    df_result = pd.DataFrame(out)
+    
+    # Asegurar tipos de datos correctos para Arrow
+    for col in df_result.columns:
+        if df_result[col].dtype == 'object':
+            df_result[col] = df_result[col].astype(str)
+    
+    return df_result
 
 
 def procesar_base_fallas(df_base, df_th):
@@ -613,6 +622,12 @@ def procesar_base_fallas(df_base, df_th):
     m['Estado'] = np.where(m['TICKET KEY'].notna(), 'Encontrado en TH',
                            'No Encontrado')
     m['TK TH'] = m['TICKET KEY'].fillna('N/A')
+    
+    # Asegurar tipos de datos correctos para Arrow
+    for col in m.columns:
+        if m[col].dtype == 'object':
+            m[col] = m[col].astype(str)
+    
     return m[['ATM', 'TK TH', 'Status', 'Estado', 'Inicio TH', 'Fin TH']]
 
 
@@ -663,14 +678,22 @@ def procesar_base_fallas_ncr(df_ncr, df_th, tol=30):
                         'REFERENCE'], b['inicio_th'], b['fin_th']
 
         out.append({
-            'ATM': atm,
-            'TK TH': tk,
-            'Status (Categoría)': cat,
+            'ATM': str(atm),  # Asegurar string
+            'TK TH': str(tk),
+            'Status (Categoría)': str(cat),
             'Inicio TH': i_th,
             'Fin TH': f_th,
-            'Estado Búsqueda': est
+            'Estado Búsqueda': str(est)
         })
-    return pd.DataFrame(out)
+    
+    df_result = pd.DataFrame(out)
+    
+    # Asegurar tipos de datos correctos para Arrow
+    for col in df_result.columns:
+        if df_result[col].dtype == 'object':
+            df_result[col] = df_result[col].astype(str)
+    
+    return df_result
 
 
 # Función para validar archivos
@@ -706,9 +729,11 @@ def main():
 
         if file_dat:
             st.success("✅ Archivo de datos cargado correctamente")
-            # Cargar hojas disponibles
+            # Cargar hojas disponibles y guardar en sesión
             excel = pd.ExcelFile(file_dat)
             hojas = excel.sheet_names
+            st.session_state.excel_file = file_dat  # Guardar para Excel export
+            st.session_state.excel = excel
         else:
             st.warning("⚠️ Archivo de datos requerido")
             excel, hojas = None, []
@@ -1097,23 +1122,35 @@ def main():
                                 print(f"Forma del df_out: {df_out.shape}")
 
                                 try:
-                                    # Obtener datos originales según el tipo
+                                    # Obtener datos originales según el tipo usando variables de sesión 
                                     df_in = None
-                                    if name == 'Exclusiones-CMM' and excel is not None:
-                                        df_in = excel.parse(excl)
-                                        print(f"Exclusiones-CMM shape original: {df_in.shape}")
-                                    elif name == 'Base Fallas' and excel is not None:
-                                        df_in = excel.parse(base)
-                                        print(f"Base Fallas shape original: {df_in.shape}")
-                                        # Limpiar columnas innecesarias si existen
-                                        if df_in.shape[1] > 14:
-                                            df_in = df_in.drop(df_in.columns[11:15], axis=1)
-                                    elif name == 'Base Fallas NCR' and excel is not None:
-                                        df_in = excel.parse(ncr)
-                                        print(f"Base Fallas NCR shape original: {df_in.shape}")
-                                        # Limpiar columnas innecesarias si existen
-                                        if df_in.shape[1] > 17:
-                                            df_in = df_in.drop(df_in.columns[14:18], axis=1)
+                                    if name == 'Exclusiones-CMM' and 'excel_file' in st.session_state and excl != "No procesar":
+                                        try:
+                                            excel_obj = pd.ExcelFile(st.session_state.excel_file)
+                                            df_in = excel_obj.parse(excl)
+                                            print(f"Exclusiones-CMM shape original: {df_in.shape}")
+                                        except Exception as e:
+                                            print(f"Error cargando Exclusiones-CMM: {e}")
+                                    elif name == 'Base Fallas' and 'excel_file' in st.session_state and base != "No procesar":
+                                        try:
+                                            excel_obj = pd.ExcelFile(st.session_state.excel_file)
+                                            df_in = excel_obj.parse(base)
+                                            print(f"Base Fallas shape original: {df_in.shape}")
+                                            # Limpiar columnas innecesarias si existen
+                                            if df_in.shape[1] > 14:
+                                                df_in = df_in.drop(df_in.columns[11:15], axis=1)
+                                        except Exception as e:
+                                            print(f"Error cargando Base Fallas: {e}")
+                                    elif name == 'Base Fallas NCR' and 'excel_file' in st.session_state and ncr != "No procesar":
+                                        try:
+                                            excel_obj = pd.ExcelFile(st.session_state.excel_file)
+                                            df_in = excel_obj.parse(ncr)
+                                            print(f"Base Fallas NCR shape original: {df_in.shape}")
+                                            # Limpiar columnas innecesarias si existen
+                                            if df_in.shape[1] > 17:
+                                                df_in = df_in.drop(df_in.columns[14:18], axis=1)
+                                        except Exception as e:
+                                            print(f"Error cargando Base Fallas NCR: {e}")
 
                                     # Combinar datos originales con resultados
                                     if df_in is not None:
