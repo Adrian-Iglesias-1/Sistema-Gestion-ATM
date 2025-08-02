@@ -993,31 +993,86 @@ def main():
                 try:
                     buffer = io.BytesIO()
                     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                        # Hoja de portada
+                        # HOJA DE PORTADA PROFESIONAL
                         portada = pd.DataFrame({
-                        'Sistema de Gestión ATM': [
-                            'Reporte Generado',
-                            f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}',
-                            'Descripción: Resultados del procesamiento de Exclusiones-CMM, Base Fallas y Base Fallas NCR',
-                            'Generado por: Sistema Automatizado v2.0',
-                            f'Tolerancia utilizada: {tol} minutos',
-                            f'Archivo: Resultados_ATM_Formateado.xlsx'
-                        ]
-                    })
-                    portada.to_excel(writer, sheet_name='Portada', index=False)
-                    ws_portada = writer.sheets['Portada']
-                    ws_portada['A1'].font = Font(name='Arial',
-                                                 size=16,
-                                                 bold=True,
-                                                 color='00FF00')
-                    ws_portada['A1'].fill = PatternFill('solid',
-                                                        fgColor='004D40')
-                    for row in ws_portada['A2:A6']:
-                        for cell in row:
-                            cell.font = Font(name='Arial',
-                                             size=12,
-                                             color='000000')
-                        ws_portada.column_dimensions['A'].width = 80
+                            'Información del Reporte': [
+                                '',  # Espacio para título principal
+                                '',  # Espacio para subtítulo
+                                '',  # Línea separadora
+                                f'Fecha de Generación: {datetime.now().strftime("%d/%m/%Y")}',
+                                f'Hora de Generación: {datetime.now().strftime("%H:%M:%S")}',
+                                '',
+                                'RESUMEN DEL PROCESAMIENTO:',
+                                f'• Tolerancia de búsqueda: {tol} minutos',
+                                f'• Tipos de datos procesados: {len(st.session_state.resultados if "resultados" in st.session_state.__dict__ else {})}',
+                                '• Exclusiones-CMM: Análisis de códigos SBIF',
+                                '• Base Fallas: Categorización por tipo de falla',
+                                '• Base Fallas NCR: Análisis especializado NCR',
+                                '',
+                                'ESTRUCTURA DEL REPORTE:',
+                                '• Datos Originales: Información base del sistema',
+                                '• Resultados del Análisis: Coincidencias encontradas',
+                                '• Estado de Búsqueda: Encontrado/No Encontrado/Diferencia',
+                                '• Información TH: Tickets de Help Desk relacionados',
+                                '',
+                                'Generado por: Sistema de Gestión ATM v2.0',
+                                'Empresa: Análisis Automatizado de Datos ATM'
+                            ]
+                        })
+                        portada.to_excel(writer, sheet_name='📋 PORTADA', index=False)
+                        ws_portada = writer.sheets['📋 PORTADA']
+                        
+                        # FORMATO DE PORTADA PROFESIONAL
+                        
+                        # Título principal
+                        ws_portada.merge_cells('A1:A3')
+                        title_cell = ws_portada['A1']
+                        title_cell.value = 'SISTEMA DE GESTIÓN ATM\nREPORTE DE ANÁLISIS INTEGRAL\nDATOS vs DOWNTIME'
+                        title_cell.font = Font(name='Arial', size=18, bold=True, color='FFFFFF')
+                        title_cell.fill = PatternFill(start_color='1F4E79', end_color='2E5A87', fill_type='solid')
+                        title_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        
+                        # Ajustar altura de las filas del título
+                        ws_portada.row_dimensions[1].height = 30
+                        ws_portada.row_dimensions[2].height = 30
+                        ws_portada.row_dimensions[3].height = 30
+                        
+                        # Formato para información del reporte
+                        for row_idx in range(4, len(portada) + 4):
+                            cell = ws_portada.cell(row=row_idx, column=1)
+                            cell_value = str(cell.value) if cell.value else ''
+                            
+                            if cell_value.startswith('RESUMEN') or cell_value.startswith('ESTRUCTURA'):
+                                # Títulos de sección
+                                cell.font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
+                                cell.fill = PatternFill(start_color='4A90E2', end_color='4A90E2', fill_type='solid')
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                                ws_portada.row_dimensions[row_idx].height = 20
+                            elif cell_value.startswith('•'):
+                                # Elementos de lista
+                                cell.font = Font(name='Arial', size=10, color='2F4F4F')
+                                cell.alignment = Alignment(horizontal='left', vertical='center', indent=2)
+                            elif cell_value.startswith('Fecha') or cell_value.startswith('Hora') or cell_value.startswith('Generado'):
+                                # Información importante
+                                cell.font = Font(name='Arial', size=11, bold=True, color='1F4E79')
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                            else:
+                                # Texto normal
+                                cell.font = Font(name='Arial', size=10, color='333333')
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                        
+                        # Ancho de columna y bordes
+                        ws_portada.column_dimensions['A'].width = 60
+                        
+                        # Borde alrededor de toda la portada
+                        for row_idx in range(1, len(portada) + 4):
+                            cell = ws_portada.cell(row=row_idx, column=1)
+                            cell.border = Border(
+                                left=Side(style='medium', color='1F4E79'),
+                                right=Side(style='medium', color='1F4E79'),
+                                top=Side(style='thin', color='1F4E79'),
+                                bottom=Side(style='thin', color='1F4E79')
+                            )
 
                         # Agregar debugging para identificar el problema
                         print("=== DEBUGGING EXCEL GENERATION ===")
@@ -1042,29 +1097,169 @@ def main():
                                 print(f"Forma del df_out: {df_out.shape}")
 
                                 try:
-                                    # Solo usar los resultados directamente
-                                    df_comb = df_out.copy()
+                                    # Obtener datos originales según el tipo
+                                    df_in = None
+                                    if name == 'Exclusiones-CMM' and excel is not None:
+                                        df_in = excel.parse(excl)
+                                        print(f"Exclusiones-CMM shape original: {df_in.shape}")
+                                    elif name == 'Base Fallas' and excel is not None:
+                                        df_in = excel.parse(base)
+                                        print(f"Base Fallas shape original: {df_in.shape}")
+                                        # Limpiar columnas innecesarias si existen
+                                        if df_in.shape[1] > 14:
+                                            df_in = df_in.drop(df_in.columns[11:15], axis=1)
+                                    elif name == 'Base Fallas NCR' and excel is not None:
+                                        df_in = excel.parse(ncr)
+                                        print(f"Base Fallas NCR shape original: {df_in.shape}")
+                                        # Limpiar columnas innecesarias si existen
+                                        if df_in.shape[1] > 17:
+                                            df_in = df_in.drop(df_in.columns[14:18], axis=1)
 
-                                    # Escribir al Excel
+                                    # Combinar datos originales con resultados
+                                    if df_in is not None:
+                                        df_comb = pd.concat([
+                                            df_in.reset_index(drop=True),
+                                            df_out.reset_index(drop=True)
+                                        ], axis=1)
+                                        print(f"Combinando: df_in {df_in.shape} + df_out {df_out.shape} = {df_comb.shape}")
+                                    else:
+                                        df_comb = df_out.copy()
+                                        print("Usando solo resultados")
+
+                                    # Escribir al Excel con espacio para títulos
                                     print(f"Escribiendo hoja '{name}' al Excel...")
-                                    df_comb.to_excel(writer,
-                                                     sheet_name=name,
-                                                     index=False)
+                                    df_comb.to_excel(writer, sheet_name=name, index=False, startrow=3)
 
                                     ws = writer.sheets[name]
                                     print(f"Hoja '{name}' creada exitosamente")
 
-                                    # FORMATO BÁSICO
-                                    # Título principal
-                                    ws['A1'] = f"Resultados - {name}"
-                                    ws['A1'].font = Font(name='Arial', size=14, bold=True)
+                                    # FORMATO PROFESIONAL PARA CLIENTE
                                     
-                                    # Ajustar ancho de columnas
+                                    # 1. TÍTULO PRINCIPAL (Fila 1)
+                                    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=df_comb.shape[1])
+                                    title_cell = ws['A1']
+                                    title_cell.value = f"REPORTE DE ANÁLISIS ATM - {name.upper()}"
+                                    title_cell.font = Font(name='Arial', size=16, bold=True, color='FFFFFF')
+                                    title_cell.fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+                                    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+                                    
+                                    # 2. SUBTÍTULOS SECCIÓN (Fila 2)
+                                    if df_in is not None:
+                                        # Subtítulo datos originales
+                                        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=df_in.shape[1])
+                                        orig_cell = ws['A2']
+                                        orig_cell.value = "DATOS ORIGINALES"
+                                        orig_cell.font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
+                                        orig_cell.fill = PatternFill(start_color='8B4513', end_color='A0522D', fill_type='solid')
+                                        orig_cell.alignment = Alignment(horizontal='center', vertical='center')
+                                        
+                                        # Subtítulo resultados
+                                        start_col_results = df_in.shape[1] + 1
+                                        ws.merge_cells(start_row=2, start_column=start_col_results, end_row=2, end_column=df_comb.shape[1])
+                                        result_cell = ws.cell(row=2, column=start_col_results)
+                                        result_cell.value = "RESULTADOS DEL ANÁLISIS"
+                                        result_cell.font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
+                                        result_cell.fill = PatternFill(start_color='0066CC', end_color='4A90E2', fill_type='solid')
+                                        result_cell.alignment = Alignment(horizontal='center', vertical='center')
+                                    else:
+                                        # Solo resultados
+                                        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=df_comb.shape[1])
+                                        result_cell = ws['A2']
+                                        result_cell.value = "RESULTADOS DEL ANÁLISIS"
+                                        result_cell.font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
+                                        result_cell.fill = PatternFill(start_color='0066CC', end_color='4A90E2', fill_type='solid')
+                                        result_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+                                    # 3. FORMATO ENCABEZADOS DE COLUMNAS (Fila 4)
+                                    for col_idx in range(1, df_comb.shape[1] + 1):
+                                        cell = ws.cell(row=4, column=col_idx)
+                                        if df_in is not None and col_idx <= df_in.shape[1]:
+                                            # Encabezados datos originales - tonos marrones
+                                            cell.font = Font(name='Arial', size=10, bold=True, color='FFFFFF')
+                                            cell.fill = PatternFill(start_color='A0522D', end_color='CD853F', fill_type='solid')
+                                        else:
+                                            # Encabezados resultados - tonos azules
+                                            cell.font = Font(name='Arial', size=10, bold=True, color='FFFFFF')
+                                            cell.fill = PatternFill(start_color='4A90E2', end_color='87CEEB', fill_type='solid')
+                                        
+                                        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                                        cell.border = Border(
+                                            left=Side(style='thin', color='000000'),
+                                            right=Side(style='thin', color='000000'),
+                                            top=Side(style='thin', color='000000'),
+                                            bottom=Side(style='medium', color='000000')
+                                        )
+
+                                    # 4. FORMATO DATOS (Desde fila 5)
+                                    for row_idx in range(5, len(df_comb) + 5):
+                                        for col_idx in range(1, df_comb.shape[1] + 1):
+                                            cell = ws.cell(row=row_idx, column=col_idx)
+                                            
+                                            if df_in is not None and col_idx <= df_in.shape[1]:
+                                                # Datos originales - tonos beige/marrones suaves
+                                                if row_idx % 2 == 0:
+                                                    cell.fill = PatternFill(start_color='F5F5DC', end_color='F5F5DC', fill_type='solid')  # Beige
+                                                else:
+                                                    cell.fill = PatternFill(start_color='FAEBD7', end_color='FAEBD7', fill_type='solid')  # Beige más claro
+                                                cell.font = Font(name='Arial', size=9, color='2F4F4F')
+                                            else:
+                                                # Resultados - tonos azules suaves
+                                                if row_idx % 2 == 0:
+                                                    cell.fill = PatternFill(start_color='E6F3FF', end_color='E6F3FF', fill_type='solid')  # Azul muy claro
+                                                else:
+                                                    cell.fill = PatternFill(start_color='CCE7FF', end_color='CCE7FF', fill_type='solid')  # Azul claro
+                                                cell.font = Font(name='Arial', size=9, color='003366', bold=True)
+                                            
+                                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                                            cell.border = Border(
+                                                left=Side(style='thin', color='CCCCCC'),
+                                                right=Side(style='thin', color='CCCCCC'),
+                                                top=Side(style='thin', color='CCCCCC'),
+                                                bottom=Side(style='thin', color='CCCCCC')
+                                            )
+
+                                    # 5. LÍNEA DIVISORIA VERTICAL entre originales y resultados
+                                    if df_in is not None:
+                                        separator_col = df_in.shape[1] + 1
+                                        for row_idx in range(1, len(df_comb) + 5):
+                                            cell = ws.cell(row=row_idx, column=separator_col)
+                                            current_border = cell.border
+                                            cell.border = Border(
+                                                left=Side(style='medium', color='FF6600'),  # Línea naranja divisoria
+                                                right=current_border.right,
+                                                top=current_border.top,
+                                                bottom=current_border.bottom
+                                            )
+
+                                    # 6. AJUSTAR ANCHO DE COLUMNAS automáticamente
                                     for col_idx in range(1, df_comb.shape[1] + 1):
                                         column_letter = get_column_letter(col_idx)
-                                        ws.column_dimensions[column_letter].width = 15
+                                        max_length = 0
+                                        
+                                        # Revisar encabezado
+                                        header_cell = ws.cell(row=4, column=col_idx)
+                                        if header_cell.value:
+                                            max_length = max(max_length, len(str(header_cell.value)))
+                                        
+                                        # Revisar datos (muestreo para performance)
+                                        for row_idx in range(5, min(len(df_comb) + 5, 25)):
+                                            cell_value = ws.cell(row=row_idx, column=col_idx).value
+                                            if cell_value is not None:
+                                                max_length = max(max_length, len(str(cell_value)))
+                                        
+                                        # Establecer ancho (mínimo 10, máximo 40)
+                                        adjusted_width = min(max(max_length + 2, 10), 40)
+                                        ws.column_dimensions[column_letter].width = adjusted_width
 
-                                    print(f"Formato aplicado a la hoja '{name}'")
+                                    # 7. CONGELAR PANELES para facilitar navegación
+                                    ws.freeze_panes = 'A5'  # Congelar títulos y encabezados
+
+                                    # 8. ALTURA DE FILAS para mejor presentación
+                                    ws.row_dimensions[1].height = 25  # Título principal
+                                    ws.row_dimensions[2].height = 20  # Subtítulos
+                                    ws.row_dimensions[4].height = 18  # Encabezados
+
+                                    print(f"Formato profesional aplicado a la hoja '{name}'")
 
                                 except Exception as e:
                                     print(f"ERROR procesando hoja '{name}': {str(e)}")
