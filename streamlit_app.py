@@ -6,7 +6,7 @@ import traceback
 st.set_page_config(page_title="ATM System", page_icon="💳", layout="wide")
 
 st.title("💳 Sistema de Gestión ATM")
-st.caption("Entrypoint para Streamlit Cloud: inicia en modo seguro y permite cargar la app bajo demanda")
+st.caption("Loader de la app para Streamlit Cloud (auto-import por ruta de archivo)")
 
 
 def _load_module_from_path(module_name: str, file_path: str):
@@ -17,53 +17,54 @@ def _load_module_from_path(module_name: str, file_path: str):
     spec.loader.exec_module(module)
     return module
 
-base_dir = os.path.dirname(__file__)
 
-# Candidatos bien explícitos (ajusta si tu estructura cambia en el repo):
-REAL_MAIN = os.path.join(base_dir, "Sistema-gestion-ATM", "Sistema-Gestion-ATM", "main.py")
-TEST_APP = os.path.join(base_dir, "Sistema-gestion-ATM", "Sistema-Gestion-ATM", "test_app.py")
+def run_app():
+    base_dir = os.path.dirname(__file__)
 
-st.success("Servidor iniciado. El health check debería pasar.")
-st.write("Elige qué cargar:")
+    # Candidatos: main real y test de respaldo
+    candidates = [
+        os.path.join(base_dir, "Sistema-gestion-ATM", "Sistema-Gestion-ATM", "main.py"),
+        os.path.join(base_dir, "Sistema-gestion-ATM", "Sistema-Gestion-ATM", "test_app.py"),
+    ]
 
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Cargar app REAL", type="primary"):
+    last_error = None
+    for idx, path in enumerate(candidates, start=1):
+        if not os.path.exists(path):
+            continue
         try:
-            if not os.path.exists(REAL_MAIN):
-                raise FileNotFoundError(f"No existe: {os.path.relpath(REAL_MAIN, base_dir)}")
-            st.info(f"Cargando {os.path.relpath(REAL_MAIN, base_dir)} …")
-            mod = _load_module_from_path("atm_real", REAL_MAIN)
-            if hasattr(mod, "main") and callable(mod.main):
-                mod.main()
-            elif hasattr(mod, "app") and callable(mod.app):
-                mod.app()
-            else:
-                st.warning("El módulo no tiene 'main()' ni 'app()' callable.")
+            st.info(f"Intentando cargar: {os.path.relpath(path, base_dir)}")
+            module = _load_module_from_path(f"atm_app_{idx}", path)
+            # Ejecutar main() si existe; si no, intentar app()
+            if hasattr(module, "main") and callable(module.main):
+                module.main()
+                return
+            if hasattr(module, "app") and callable(module.app):
+                module.app()
+                return
+            st.warning(
+                "El módulo se cargó, pero no tiene una función callable 'main()' ni 'app()'."
+            )
         except Exception as e:
-            st.error("Error al cargar la app REAL:")
+            last_error = e
+            st.error(f"Fallo al cargar {os.path.relpath(path, base_dir)}")
             st.exception(e)
-            st.code("\n".join(traceback.format_exc().splitlines()[-40:]), language="text")
+            st.code("\n".join(traceback.format_exc().splitlines()[-20:]), language="text")
 
-with col2:
-    if st.button("Cargar app de PRUEBA"):
-        try:
-            if not os.path.exists(TEST_APP):
-                raise FileNotFoundError(f"No existe: {os.path.relpath(TEST_APP, base_dir)}")
-            st.info(f"Cargando {os.path.relpath(TEST_APP, base_dir)} …")
-            mod = _load_module_from_path("atm_test", TEST_APP)
-            if hasattr(mod, "main") and callable(mod.main):
-                mod.main()
-            elif hasattr(mod, "app") and callable(mod.app):
-                mod.app()
-            else:
-                st.warning("El módulo de prueba no tiene 'main()' ni 'app()' callable.")
-        except Exception as e:
-            st.error("Error al cargar la app de PRUEBA:")
-            st.exception(e)
-            st.code("\n".join(traceback.format_exc().splitlines()[-40:]), language="text")
+    # Si nada funcionó, mostrar guía
+    st.error("No se pudo iniciar la aplicación.")
+    st.write(
+        "Verifica que exista alguno de estos archivos y que contenga una función 'main()' o 'app()':"
+    )
+    for p in candidates:
+        st.code(os.path.relpath(p, base_dir))
+    st.write(
+        "Si estás en Streamlit Cloud, pon el Main file path en 'streamlit_app.py'."
+    )
 
-st.divider()
-with st.expander("Rutas detectadas"):
-    st.code(f"REAL_MAIN = {os.path.relpath(REAL_MAIN, base_dir)}\nTEST_APP = {os.path.relpath(TEST_APP, base_dir)}")
 
+if __name__ == "__main__":
+    # Ejecutar cuando se corre localmente con 'python streamlit_app.py'
+    run_app()
+else:
+    # Streamlit importa el módulo: ejecutamos al import
+    run_app()
