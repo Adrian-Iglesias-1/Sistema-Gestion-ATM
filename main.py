@@ -18,6 +18,8 @@ st.markdown("""
     background-color: #0d1117;
     color: #39ff14;
     font-family: 'Courier New', monospace;
+  }
+  
   h1, h2, h3 {
     color: #39ff14;
     font-family: 'Courier New', monospace;
