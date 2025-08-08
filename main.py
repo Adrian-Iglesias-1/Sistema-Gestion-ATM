@@ -927,5 +927,5 @@ def main():
         """)
 
 
-if __name__ == "__main__":
-    main()
+# Ejecutar la aplicación directamente
+main()
