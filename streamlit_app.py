@@ -104,16 +104,27 @@ with col2:
 
 with st.expander("ℹ️ Información de debug"):
     st.write(f"**Directorio base:** `{base_dir}`")
-    st.write(f"**Archivos en raíz:** {os.listdir(base_dir)}")
     
-    # Mostrar estructura de carpetas
+    try:
+        if os.path.exists(base_dir) and os.path.isdir(base_dir):
+            files_in_root = os.listdir(base_dir)
+            st.write(f"**Archivos en raíz:** {files_in_root}")
+        else:
+            st.error(f"El directorio base no existe o no es válido: {base_dir}")
+    except Exception as e:
+        st.error(f"Error al listar archivos: {e}")
+    
+    # Mostrar estructura de carpetas con manejo de errores
     st.write("**Estructura del repo:**")
-    for root, dirs, files in os.walk(base_dir):
-        level = root.replace(base_dir, '').count(os.sep)
-        indent = ' ' * 2 * level
-        st.text(f"{indent}{os.path.basename(root)}/")
-        subindent = ' ' * 2 * (level + 1)
-        for file in files[:10]:  # Limitar a 10 archivos por carpeta
-            st.text(f"{subindent}{file}")
-        if len(files) > 10:
-            st.text(f"{subindent}... y {len(files) - 10} archivos más")
+    try:
+        for root, dirs, files in os.walk(base_dir):
+            level = root.replace(base_dir, '').count(os.sep)
+            indent = ' ' * 2 * level
+            st.text(f"{indent}{os.path.basename(root)}/")
+            subindent = ' ' * 2 * (level + 1)
+            for file in files[:10]:  # Limitar a 10 archivos por carpeta
+                st.text(f"{subindent}{file}")
+            if len(files) > 10:
+                st.text(f"{subindent}... y {len(files) - 10} archivos más")
+    except Exception as e:
+        st.error(f"Error al explorar estructura: {e}")
